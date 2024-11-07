@@ -10,6 +10,35 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, instrument};
 use tracing_subscriber::EnvFilter;
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Bitcoin network type (bitcoin, testnet, regtest, signet)
+    #[arg(long, default_value = "regtest")]
+    network: String,
+
+    /// Bitcoin RPC URL
+    #[arg(long, default_value = "http://127.0.0.1")]
+    bitcoin_url: String,
+
+    /// Bitcoin RPC username
+    #[arg(long, default_value = "user")]
+    rpc_username: String,
+
+    /// Bitcoin RPC password
+    #[arg(long, default_value = "password")]
+    rpc_password: String,
+
+    /// Host address to bind the HTTP server
+    #[arg(long, default_value = "127.0.0.1")]
+    host: String,
+
+    /// Port to bind the HTTP server
+    #[arg(long, default_value = "5558")]
+    port: u16,
+}
 
 // Structs for the broadcast queue
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +191,9 @@ struct BitcoinConfig {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Parse command line arguments
+    let args = Args::parse();
+
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
@@ -169,12 +201,24 @@ async fn main() -> std::io::Result<()> {
 
     info!("Starting Bitcoin transaction broadcast service");
 
-    // Initialize Bitcoin config
+    // Parse network from string
+    let network = match args.network.to_lowercase().as_str() {
+        "bitcoin" => Network::Bitcoin,
+        "testnet" => Network::Testnet,
+        "regtest" => Network::Regtest,
+        "signet" => Network::Signet,
+        _ => {
+            error!("Unsupported network: {}", args.network);
+            return Ok(());
+        }
+    };
+
+    // Initialize Bitcoin config with CLI args
     let config = BitcoinConfig {
-        network: Network::Regtest,
-        network_url: "http://127.0.0.1".to_string(),
-        rpc_username: "user".to_string(),
-        rpc_password: "password".to_string(),
+        network,
+        network_url: args.bitcoin_url,
+        rpc_username: args.rpc_username,
+        rpc_password: args.rpc_password,
     };
 
     // Create broadcast service
@@ -191,14 +235,17 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    // Start HTTP server
+    // Start HTTP server with CLI-specified host and port
+    let bind_address = format!("{}:{}", args.host, args.port);
+    info!("Starting HTTP server on {}", bind_address);
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(service.clone()))
             .route("/broadcast", web::post().to(enqueue_transaction))
             .route("/status", web::get().to(get_queue_status))
     })
-    .bind("127.0.0.1:5558")?
+    .bind(&bind_address)?
     .run()
     .await
 }
