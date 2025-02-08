@@ -1,6 +1,6 @@
 # Bitcoin Transaction Broadcaster
 
-A service for Bitcoin transaction broadcasting with automatic retry functionality. This service provides a queuing system for Bitcoin transactions and exposes HTTP endpoints for transaction submission and queue monitoring.
+A simple HTTP service for broadcasting Bitcoin transactions. This service provides an HTTP endpoint for submitting raw transactions to a Bitcoin node.
 
 ## Prerequisites
 
@@ -10,48 +10,59 @@ A service for Bitcoin transaction broadcasting with automatic retry functionalit
 
 ## Configuration
 
-The service requires the following configuration:
+The service can be configured using command-line arguments:
 
-- Bitcoin network selection (Mainnet, Testnet, Regtest, Signet)
-- Bitcoin Core RPC URL
-- RPC username
-- RPC password
+- `--network`: Bitcoin network type (bitcoin, testnet, regtest, signet) [default: regtest]
+- `--bitcoin-url`: Bitcoin RPC URL [default: http://127.0.0.1]
+- `--rpc-username`: Bitcoin RPC username [default: user]
+- `--rpc-password`: Bitcoin RPC password [default: password]
+- `--host`: Host address to bind the HTTP server [default: 127.0.0.1]
+- `--port`: Port to bind the HTTP server [default: 5558]
 
-Default configuration uses:
-- Network: Regtest
-- URL: http://127.0.0.1
-- Port: Based on network (Mainnet: 8332, Testnet: 18332, Regtest: 18443)
+The RPC port is automatically selected based on the network:
+- Mainnet: 8332
+- Testnet: 18332
+- Regtest: 18443
+- Signet: 38332
 
-### Build and Run the Service
-Run the following command to build and start the service:
+## Building and Running
+
+The service includes several convenient commands using Just:
+
+### Build the Service
 ```sh
-cargo run --release
+just build
+# or
+just b
 ```
-or if you have Just installed:
 
-```sh
+### Run with Default Settings
+```shCopy
 just run
 ```
-The service will now be running at http://localhost:5558.
+### Run with Docker Configuration
+```shCopy
+just run-docker
+```
 
-## API Endpoints
+### Run with Custom Settings
+```shCopy
+just run-custom <host> <port> <bitcoin_url> <network> <username> <password>
+```
 
-### Submit Transaction
-```bash
+### API
+#### Broadcast Transaction
+```bashCopy
 curl -X POST http://127.0.0.1:5558/broadcast \
   -H "Content-Type: application/json" \
   -d '{"raw_tx": "SIGNED_BTC_TX"}'
 ```
-
-### Check Queue Status
-```bash
-curl http://127.0.0.1:5558/status
+#### Response Format
+```jsonCopy
+{
+    "status": "success" | "error",
+    "txid": "transaction_id_bytes", // Base16 encoded transaction ID if successful
+    "current_block": 123456,        // Current blockchain height
+    "error": "error_message"        // Present only if status is "error"
+}
 ```
-
-## How It Works
-
-1. Transactions are submitted via the HTTP API
-2. Each transaction is queued with metadata including submission time and retry count
-3. A background worker processes the queue every 10 seconds
-4. Failed transactions are automatically retried up to 3 times
-5. Transactions exceeding the retry limit are logged and dropped
