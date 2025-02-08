@@ -28,7 +28,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from builder
-COPY --from=builder /usr/src/app/target/release/bitcoin-tx-queue /usr/local/bin/
+COPY --from=builder /usr/src/app/target/release/btc-broadcast-service /usr/local/bin/
 
 # Create a non-root user with specific UID
 RUN useradd -m -u 1001 service
@@ -41,4 +41,4 @@ ENV RUST_LOG=info
 EXPOSE 5558
 
 # Run the binary
-CMD ["bitcoin-tx-queue"]
+CMD ["btc-broadcast-service"]
