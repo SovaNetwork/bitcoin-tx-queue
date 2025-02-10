@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
-use bitcoin::{hex::DisplayHex, Network};
+use bitcoin::Network;
 use bitcoincore_rpc::{
     bitcoin::{hashes::Hash, Txid},
     Auth, Client, RpcApi,
@@ -110,10 +110,14 @@ async fn broadcast_transaction(
 
     match service.broadcast_transaction(&req.raw_tx) {
         Ok(txid) => {
+            let mut txid_array = [0u8; 32];
+            txid_array.copy_from_slice(&txid.clone());
+            let hash = bitcoin::hashes::sha256d::Hash::from_bytes_ref(&txid_array);
             info!(
                 "Successfully broadcast transaction: {}",
-                txid.to_hex_string(bitcoin::hex::Case::Lower)
+                bitcoin::Txid::from_raw_hash(hash.clone())
             );
+
             HttpResponse::Ok().json(BroadcastResponse {
                 status: "success".to_string(),
                 txid: Some(txid),
