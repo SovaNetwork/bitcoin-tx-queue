@@ -76,9 +76,13 @@ impl BroadcastService {
     }
 
     fn broadcast_transaction(&self, raw_tx: &str) -> Result<Vec<u8>, bitcoincore_rpc::Error> {
+        // call send_raw_transaction and get the txid in natural byte order
         let txid: Txid = self.bitcoin_client.send_raw_transaction(raw_tx)?;
-        // Convert Txid to 32 bytes
-        Ok(txid.to_raw_hash().to_byte_array().to_vec())
+        // Convert Txid to 32 byte vec and convert to reverse byte order.
+        // Reverse byte order is the standard format for looking up btc txs in block explorer or node
+        let mut bytes = txid.to_raw_hash().to_byte_array().to_vec();
+        bytes.reverse();
+        Ok(bytes)
     }
 
     fn get_current_block_height(&self) -> Result<u64, bitcoincore_rpc::Error> {
